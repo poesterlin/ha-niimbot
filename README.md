@@ -1,7 +1,9 @@
 # hass-niimbot
+> **Fork Note**: This is a community fork of [eigger/hass-niimbot](https://github.com/eigger/hass-niimbot/tree/master) with additional features including connection status sensor, state persistence, and configurable scan interval.
+
 Niimbot Label Printer Home Assistant Integration
 
->[!IMPORTANT]
+> [!IMPORTANT]
 >
 > For all NIIMBOT users using Bluetooth proxies:  
 > Please update your proxy devices to **ESPHome 2025.11.2 or later**.
@@ -10,6 +12,15 @@ Niimbot Label Printer Home Assistant Integration
 > - Much faster printing (almost instant)
 > - Greatly improved reliability
 > - Reduced delays thanks to improved internal GATT handling
+
+## Features
+
+- **Connection Status Sensor**: A dedicated binary sensor shows whether the printer is currently online or offline
+- **State Persistence**: When the printer goes offline, other sensors (battery, paper state, etc.) retain their last known values instead of showing as "unavailable"
+- **Configurable Scan Interval**: Adjust the polling frequency (30s - 9999s) without restarting Home Assistant
+- **Bluetooth LE Communication**: Efficient low-energy communication with Niimbot printers
+- **Print Preview**: Preview labels without wasting stickers
+- **Custom Fonts**: Support for custom TTF fonts
 
 ## 💬 Feedback & Support
 
@@ -29,6 +40,46 @@ repository into the `custom_components/niimbot` directory.
 2. Restart Home Assistant.
 3. Go to Settings / Integrations and add integration "Niimbot"
 4. Please select a discovered Niimbot device from the list.
+
+## Sensors
+
+The integration provides the following sensors:
+
+| Sensor | Description |
+|--------|-------------|
+| **Connection Status** | Binary sensor showing if the printer is online (Connected) or offline (Disconnected) |
+| Battery | Battery level percentage |
+| Paper State | Paper availability status |
+| Closing State | Printer cover status |
+| RFID Read State | RFID reading state |
+
+### Connection Status
+
+A dedicated `Connection Status` binary sensor (device class: `connectivity`) is created for each printer. This sensor:
+
+- Shows **Connected** (on) when the printer is reachable
+- Shows **Disconnected** (off) when the printer is offline or out of range
+- Updates in real-time based on the configured scan interval
+
+### State Persistence
+
+When the printer goes offline:
+- The **Connection Status** sensor changes to "Disconnected"
+- Other sensors (battery, paper state, etc.) **retain their last known values** instead of showing as "unavailable"
+
+This behavior allows you to:
+- See historical state data even when the printer is powered off
+- Create reliable automations that don't trigger on temporary disconnections
+- Keep dashboards informative even during printer downtime
+
+## Configuration Options
+
+| Option | Default | Range | Description |
+|--------|---------|-------|-------------|
+| Scan Interval | 30s | 30-9999s | How often to check printer status |
+| Use Sound | True | True/False | Play sound on Bluetooth connection |
+| Wait Between Print Lines | 50ms | 0-1000ms | Delay between data packets |
+| Confirm Every Nth Print Line | 1 | 1-512 | Lines sent before waiting for confirmation |
    
 ## Examples for B1
 
@@ -235,6 +286,7 @@ settings, then find *Niimbot* under the list of integrations, and
 open it.  Use the gear icon for your printer's config entry to change
 the settings to the values that worked for you:
 
+* Scan Interval: set how often to check printer status (30s default)
 * Wait time between print lines: set it to the value that worked
   for you, multiplied by 1000 (as the configuration value is in
   milliseconds).
