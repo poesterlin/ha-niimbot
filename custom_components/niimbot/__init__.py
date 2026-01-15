@@ -39,7 +39,7 @@ from .const import (
     ImageAndBLEData,
 )
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.IMAGE]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.IMAGE]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,16 +85,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Get data from Niimbot BLE."""
         ble_device = bluetooth.async_ble_device_from_address(hass, address)
         if ble_device is None:
+            if coordinator.data:
+                coordinator.data.sensors["connection_status"] = False
+                return coordinator.data
             raise UpdateFailed(
                 f"BLE device could not be obtained from address {address}"
             )
 
         try:
             data = await niimbot.update_device(ble_device)
+            data.sensors["connection_status"] = True
+            return data
         except Exception as err:
+            if coordinator.data:
+                _LOGGER.warning(
+                    "Error updating Niimbot data: %s. Using cached data.", err
+                )
+                coordinator.data.sensors["connection_status"] = False
+                return coordinator.data
             raise UpdateFailed(f"Unable to fetch data: {err}") from err
-
-        return data
 
     coordinator = DataUpdateCoordinator(
         hass,
