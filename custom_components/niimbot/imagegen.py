@@ -19,6 +19,9 @@ from datetime import timedelta, datetime
 
 _LOGGER = logging.getLogger(__name__)
 
+_ICON_METADATA = None
+_FONT_CACHE = {}
+
 white = (255, 255, 255, 255)
 black = (0, 0, 0, 255)
 red = (255, 0, 0, 255)
@@ -89,6 +92,17 @@ def get_font_file(font_name, hass):
             font_file = os.path.join(www_fonts_dir, font_name)
             _LOGGER.debug(f"Font => font_name: {font_name} got font_file: {font_file}")
     return font_file
+
+
+def get_cached_font(font_name, size, hass):
+    key = (font_name, size)
+    if key in _FONT_CACHE:
+        return _FONT_CACHE[key]
+
+    font_file = get_font_file(font_name, hass)
+    font = ImageFont.truetype(font_file, size)
+    _FONT_CACHE[key] = font
+    return font
 
 
 # custom image generator
@@ -281,8 +295,7 @@ def customimage(entity_id, service, hass) -> Image.Image:
             d.fontmode = "1"
             size = element.get("size", 20)
             font_name = element.get("font", "ppb.ttf")
-            font_file = get_font_file(font_name, hass)
-            font = ImageFont.truetype(font_file, size)
+            font = get_cached_font(font_name, size, hass)
             if not "y" in element:
                 akt_pos_y = pos_y + element.get("y_padding", 10)
             else:
@@ -330,8 +343,7 @@ def customimage(entity_id, service, hass) -> Image.Image:
             d.fontmode = "1"
             size = element.get("size", 20)
             font_name = element.get("font", "ppb.ttf")
-            font_file = get_font_file(font_name, hass)
-            font = ImageFont.truetype(font_file, size)
+            font = get_cached_font(font_name, size, hass)
             color = element.get("color", "black")
             anchor = element.get("anchor", "lm")
             stroke_width = element.get("stroke_width", 0)
@@ -371,7 +383,6 @@ def customimage(entity_id, service, hass) -> Image.Image:
             d = ImageDraw.Draw(img)
             d.fontmode = "1"
             font_name = element.get("font", "ppb.ttf")
-            font_file = get_font_file(font_name, hass)
             color = element.get("color", "black")
             anchor = element.get("anchor", "la")
             size = element.get("size", 20)
@@ -394,7 +405,7 @@ def customimage(entity_id, service, hass) -> Image.Image:
                 rendered_height = rendered_y2 - rendered_y1
                 return rendered_width, rendered_height
 
-            font = ImageFont.truetype(font_file, size)
+            font = get_cached_font(font_name, size, hass)
             if element.get("fit_width") or element.get("fit") in ["width", True]:
                 try:
                     width = float(element["width"])
@@ -415,7 +426,7 @@ def customimage(entity_id, service, hass) -> Image.Image:
                     )
                     size = size * (width / rendered_width)
                     spacing = spacing * (width / rendered_width)
-                    font = ImageFont.truetype(font_file, size)
+                    font = get_cached_font(font_name, size, hass)
             if element.get("fit_height") or element.get("fit") in ["height", True]:
                 try:
                     height = float(element["height"])
@@ -436,7 +447,7 @@ def customimage(entity_id, service, hass) -> Image.Image:
                     )
                     size = size * (height / rendered_height)
                     spacing = spacing * (height / rendered_height)
-                    font = ImageFont.truetype(font_file, size)
+                    font = get_cached_font(font_name, size, hass)
 
             _LOGGER.debug("Got new_multiline string: %r", element["value"])
             d.multiline_text(
@@ -458,14 +469,14 @@ def customimage(entity_id, service, hass) -> Image.Image:
             d = ImageDraw.Draw(img)
             d.fontmode = "1"
             # ttf from https://github.com/Templarian/MaterialDesign-Webfont/blob/master/fonts/materialdesignicons-webfont.ttf
-            font_file = os.path.join(
-                os.path.dirname(__file__), "materialdesignicons-webfont.ttf"
-            )
-            meta_file = os.path.join(
-                os.path.dirname(__file__), "materialdesignicons-webfont_meta.json"
-            )
-            f = open(meta_file)
-            data = json.load(f)
+            global _ICON_METADATA
+            if _ICON_METADATA is None:
+                meta_file = os.path.join(
+                    os.path.dirname(__file__), "materialdesignicons-webfont_meta.json"
+                )
+                with open(meta_file) as f:
+                    _ICON_METADATA = json.load(f)
+            data = _ICON_METADATA
             chr_hex = ""
             value = element["value"]
             if value.startswith("mdi:"):
@@ -483,7 +494,7 @@ def customimage(entity_id, service, hass) -> Image.Image:
                 raise HomeAssistantError("Non valid icon used: " + value)
             stroke_width = element.get("stroke_width", 0)
             stroke_fill = element.get("stroke_fill", "white")
-            font = ImageFont.truetype(font_file, element["size"])
+            font = get_cached_font("materialdesignicons-webfont.ttf", element["size"], hass)
             anchor = element["anchor"] if "anchor" in element else "la"
             fill = (
                 getIndexColor(element["color"])
@@ -653,8 +664,7 @@ def customimage(entity_id, service, hass) -> Image.Image:
                 )
                 _LOGGER.info("Found %i in bars width: %i" % (barcount, bar_width))
                 size = element["bars"].get("legend_size", 10)
-                font_file = get_font_file(font_name, hass)
-                font = ImageFont.truetype(font_file, size)
+                font = get_cached_font(font_name, size, hass)
                 legend_color = element["bars"].get("legend_color", "black")
                 max_val = 0
                 for bar in bars:
@@ -707,9 +717,8 @@ def customimage(entity_id, service, hass) -> Image.Image:
             start = end - duration
             # The label font and size
             size = element.get("size", 10)
-            font_file = element.get("font", "ppb.ttf")
-            abs_font_file = os.path.join(os.path.dirname(__file__), font_file)
-            font = ImageFont.truetype(abs_font_file, size)
+            font_name = element.get("font", "ppb.ttf")
+            font = get_cached_font(font_name, size, hass)
             # The value legend
             ylegend = element.get("ylegend", dict())
             if ylegend is None:
@@ -720,15 +729,10 @@ def customimage(entity_id, service, hass) -> Image.Image:
                 ylegend_pos = ylegend.get("position", "left")
                 if ylegend_pos not in ("left", "right", None):
                     ylegend_pos = "left"
-                ylegend_font_file = ylegend.get("font", font_file)
+                ylegend_font_file = ylegend.get("font", font_name)
                 ylegend_size = ylegend.get("size", size)
-                if ylegend_font_file != font_file or ylegend_size != size:
-                    ylegend_abs_font_file = os.path.join(
-                        os.path.dirname(__file__), ylegend_font_file
-                    )
-                    ylegend_font = ImageFont.truetype(
-                        ylegend_abs_font_file, ylegend_size
-                    )
+                if ylegend_font_file != font_name or ylegend_size != size:
+                    ylegend_font = get_cached_font(ylegend_font_file, ylegend_size, hass)
                 else:
                     ylegend_font = font
             # The value axis
